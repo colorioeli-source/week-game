@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🏆 Week Game</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Nunito', sans-serif; background: #0f0c29; min-height: 100vh; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #ffffff10; }
+    ::-webkit-scrollbar-thumb { background: #ffffff40; border-radius: 3px; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+// ─────────────────────────────────────────────
+// ADMIN CODES
+// ─────────────────────────────────────────────
+const ADMIN_CODES = ["ADMIN1", "ADMIN2"];
+
+// ─────────────────────────────────────────────
+// SVG AVATAR — generato da descrizione fisica
+// ─────────────────────────────────────────────
+function AvatarSVG({ char, size = 80 }) {
+  const s = size;
+  const cx = s / 2;
+  // Skin tones
+  const skins = { light: "#fde3c0", medium: "#f0b27a", olive: "#c68642", dark: "#a0522d" };
+  // Eye colors
+  const eyes = { dark: "#2c1810", brown: "#6b3a2a", light: "#7fb3d3", hazel: "#8b6914" };
+  // Hair colors
+  const hairs = {
+    red: "#c0392b",
+    auburn: "#8B2500",
+    "brown-light": "#9b6a2f",
+    "brown-dark": "#5c3317",
+    black: "#1a1a1a",
+    "black-red": "#3a1010",
+    blonde: "#e8c44a",
+  };
+
+  const sk = skins[char.skin] || skins.light;
+  const ey = eyes[char.eyeColor] || eyes.dark;
+  const hr = hairs[char.hairColor] || hairs.black;
+  const gl = char.glasses;
+
+  // Hair path helpers
+  function hairLong() {
+    // Long flowing hair
+    return <>
+      {/* back layer */}
+      <ellipse cx={cx} cy={s*0.38} rx={s*0.29} ry={s*0.32} fill={hr} />
+      {/* side falls */}
+      <path d={`M${cx-s*0.28},${s*0.38} Q${cx-s*0.36},${s*0.7} ${cx-s*0.26},${s*0.85}`} stroke={hr} strokeWidth={s*0.1} fill="none" strokeLinecap="round"/>
+      <path d={`M${cx+s*0.28},${s*0.38} Q${cx+s*0.36},${s*0.7} ${cx+s*0.26},${s*0.85}`} stroke={hr} strokeWidth={s*0.1} fill="none" strokeLinecap="round"/>
+    </>;
+  }
+  function hairShortCurly() {
+    return <>
+      <ellipse cx={cx} cy={s*0.33} rx={s*0.27} ry={s*0.2} fill={hr} />
+      {/* curly bumps */}
+      <circle cx={cx-s*0.22} cy={s*0.32} r={s*0.08} fill={hr} />
+      <circle cx={cx+s*0.22} cy={s*0.32} r={s*0.08} fill={hr} />
+      <circle cx={cx-s*0.14} cy={s*0.25} r={s*0.07} fill={hr} />
+      <circle cx={cx+s*0.14} cy={s*0.25} r={s*0.07} fill={hr} />
+      <circle cx={cx} cy={s*0.23} r={s*0.07} fill={hr} />
+    </>;
+  }
+  function hairVeryCurly() {
+    return <>
+      <ellipse cx={cx} cy={s*0.32} rx={s*0.3} ry={s*0.22} fill={hr} />
+      {[...Array(8)].map((_, i) => {
+        const angle = (i / 8) * Math.PI * 2;
+        const rx2 = s * 0.27, ry2 = s * 0.19;
+        const bx = cx + rx2 * Math.cos(angle);
+        const by = s*0.32 + ry2 * Math.sin(angle);
+        return <circle key={i} cx={bx} cy={by} r={s*0.065} fill={hr} />;
+      })}
+    </>;
+  }
+  function hairWavy() {
+    return <>
+      <ellipse cx={cx} cy={s*0.36} rx={s*0.28} ry={s*0.26} fill={hr} />
+      <path d={`M${cx-s*0.26},${s*0.42} Q${cx-s*0.32},${s*0.58} ${cx-s*0.24},${s*0.7} Q${cx-s*0.16},${s*0.82} ${cx-s*0.22},${s*0.88}`}
+        stroke={hr} strokeWidth={s*0.09} fill="none" strokeLinecap="round"/>
+      <path d={`M${cx+s*0.26},${s*0.42} Q${cx+s*0.32},${s*0.58} ${cx+s*0.24},${s*0.7} Q${cx+s*0.16},${s*0.82} ${cx+s*0.22},${s*0.88}`}
+        stroke={hr} strokeWidth={s*0.09} fill="none" strokeLinecap="round"/>
+    </>;
+  }
+  function hairShort() {
+    return <>
+      <ellipse cx={cx} cy={s*0.35} rx={s*0.26} ry={s*0.18} fill={hr} />
+      <rect x={cx-s*0.26} y={s*0.3} width={s*0.52} height={s*0.1} rx={s*0.05} fill={hr} />
+    </>;
+  }
+  function hairMediumStraight() {
+    return <>
+      <ellipse cx={cx} cy={s*0.36} rx={s*0.28} ry={s*0.25} fill={hr} />
+      <rect x={cx-s*0.27} y={s*0.42} width={s*0.1} height={s*0.28} rx={s*0.04} fill={hr} />
+      <rect x={cx+s*0.17} y={s*0.42} width={s*0.1} height={s*0.28} rx={s*0.04} fill={hr} />
+    </>;
+  }
+
+  const hairMap = {
+    long: hairLong,
+    "curly-short": hairShortCurly,
+    "very-curly": hairVeryCurly,
+    wavy: hairWavy,
+    short: hairShort,
+    "medium-straight": hairMediumStraight,
+  };
+
+  const renderHair = hairMap[char.hairStyle] || hairShort;
+
+  return (
+    <svg width={s} height={s} viewBox={`0 0 ${s} ${s}`} style={{ display: "block" }}>
+      {/* background circle */}
+      <circle cx={cx} cy={cx} r={cx} fill={char.bg} />
+
+      {/* hair (back) */}
+      {renderHair()}
+
+      {/* neck */}
+      <rect x={cx - s*0.07} y={s*0.68} width={s*0.14} height={s*0.14} rx={s*0.03} fill={sk} />
+
+      {/* face */}
+      <ellipse cx={cx} cy={s*0.5} rx={s*0.22} ry={s*0.26} fill={sk} />
+
+      {/* ears */}
+      <ellipse cx={cx - s*0.22} cy={s*0.52} rx={s*0.04} ry={s*0.06} fill={sk} />
+      <ellipse cx={cx + s*0.22} cy={s*0.52} rx={s*0.04} ry={s*0.06} fill={sk} />
+
+      {/* eyes */}
+      <ellipse cx={cx - s*0.09} cy={s*0.48} rx={s*0.055} ry={s*0.045} fill="white" />
+      <ellipse cx={cx + s*0.09} cy={s*0.48} rx={s*0.055} ry={s*0.045} fill="white" />
+      <circle cx={cx - s*0.09} cy={s*0.48} r={s*0.028} fill={ey} />
+      <circle cx={cx + s*0.09} cy={s*0.48} r={s*0.028} fill={ey} />
+      {/* pupil shine */}
+      <circle cx={cx - s*0.082} cy={s*0.474} r={s*0.008} fill="white" />
+      <circle cx={cx + s*0.098} cy={s*0.474} r={s*0.008} fill="white" />
+      {/* eyebrows */}
+      <path d={`M${cx-s*0.14},${s*0.42} Q${cx-s*0.09},${s*0.40} ${cx-s*0.04},${s*0.42}`} stroke={hr} strokeWidth={s*0.018} fill="none" strokeLinecap="round"/>
+      <path d={`M${cx+s*0.04},${s*0.42} Q${cx+s*0.09},${s*0.40} ${cx+s*0.14},${s*0.42}`} stroke={hr} strokeWidth={s*0.018} fill="none" strokeLinecap="round"/>
+
+      {/* nose */}
+      <circle cx={cx - s*0.045} cy={s*0.56} r={s*0.018} fill={sk} stroke="#c0905055" strokeWidth={1} />
+      <circle cx={cx + s*0.045} cy={s*0.56} r={s*0.018} fill={sk} stroke="#c0905055" strokeWidth={1} />
+
+      {/* mouth */}
+      <path d={`M${cx-s*0.08},${s*0.63} Q${cx},${s*0.68} ${cx+s*0.08},${s*0.63}`} stroke="#c07060" strokeWidth={s*0.022} fill="none" strokeLinecap="round"/>
+
+      {/* glasses */}
+      {gl && <>
+        <rect x={cx-s*0.2} y={s*0.455} width={s*0.16} height={s*0.1} rx={s*0.05} fill="none" stroke="#222" strokeWidth={s*0.025} />
+        <rect x={cx+s*0.04} y={s*0.455} width={s*0.16} height={s*0.1} rx={s*0.05} fill="none" stroke="#222" strokeWidth={s*0.025} />
+        <line x1={cx-s*0.04} y1={s*0.5} x2={cx+s*0.04} y2={s*0.5} stroke="#222" strokeWidth={s*0.02} />
+        <line x1={cx-s*0.2} y1={s*0.505} x2={cx-s*0.26} y2={s*0.5} stroke="#222" strokeWidth={s*0.02} />
+        <line x1={cx+s*0.2} y1={s*0.505} x2={cx+s*0.26} y2={s*0.5} stroke="#222" strokeWidth={s*0.02} />
+      </>}
+
+      {/* body/shoulders */}
+      <path d={`M${cx-s*0.3},${s} Q${cx-s*0.22},${s*0.82} ${cx},${s*0.8} Q${cx+s*0.22},${s*0.82} ${cx+s*0.3},${s}`} fill={char.color} />
+
+      {/* rim glow */}
+      <circle cx={cx} cy={cx} r={cx-1} fill="none" stroke={char.color} strokeWidth="2" opacity="0.5" />
+    </svg>
+  );
+}
+
+// ─────────────────────────────────────────────
+// PERSONAGGI
+// ─────────────────────────────────────────────
+const CHARACTERS = [
+  {
+    id:"p1", name:"Elisa",
+    desc:"",
+    hairStyle:"long", hairColor:"red", eyeColor:"brown", skin:"light",
+    color:"#e05070", bg:"#f5d0d8",
+  },
+  {
+    id:"p2", name:"Gaia",
+    desc:"",
+    hairStyle:"curly-short", hairColor:"brown-light", eyeColor:"brown", skin:"light",
+    color:"#d4a017", bg:"#f5ead0",
+  },
+  {
+    id:"p3", name:"Federica",
+    desc:"",
+    hairStyle:"wavy", hairColor:"brown-dark", eyeColor:"brown", skin:"medium",
+    color:"#9b6bff", bg:"#e8d5f5",
+  },
+  {
+    id:"p4", name:"Arianna",
+    desc:"",
+    hairStyle:"wavy", hairColor:"black", eyeColor:"dark", skin:"olive",
+    color:"#2ecc71", bg:"#c8f0d8",
+  },
+  {
+    id:"p5", name:"Virginia",
+    desc:"",
+    hairStyle:"medium-straight", hairColor:"black", eyeColor:"dark", skin:"light",
+    glasses: true,
+    color:"#3a9bdc", bg:"#c8e4f5",
+  },
+  {
+    id:"p6", name:"Marzia",
+    desc:"",
+    hairStyle:"wavy", hairColor:"black", eyeColor:"light", skin:"light",
+    color:"#e67e22", bg:"#f5e0c8",
+  },
+  {
+    id:"p7", name:"Simone",
+    desc:"",
+    hairStyle:"curly-short", hairColor:"brown-light", eyeColor:"dark", skin:"medium",
+    color:"#e74c3c", bg:"#f5ccc8",
+  },
+  {
+    id:"p8", name:"Gianluca",
+    desc:"",
+    hairStyle:"very-curly", hairColor:"blonde", eyeColor:"light", skin:"light",
+    color:"#f1c40f", bg:"#f5f0c0",
+  },
+  {
+    id:"p9", name:"Daniele",
+    desc:"",
+    hairStyle:"short", hairColor:"black", eyeColor:"dark", skin:"light",
+    color:"#1abc9c", bg:"#c8f0ea",
+  },
+  {
+    id:"p10", name:"Pietro",
+    desc:"",
+    hairStyle:"curly-short", hairColor:"black", eyeColor:"dark", skin:"olive",
+    color:"#9b59b6", bg:"#e0c8f5",
+  },
+  {
+    id:"p11", name:"Alessio",
+    desc:"",
+    hairStyle:"short", hairColor:"black-red", eyeColor:"light", skin:"light",
+    color:"#e91e8c", bg:"#f5c8e8",
+  },
+  {
+    id:"p12", name:"Lorenzo",
+    desc:"",
+    hairStyle:"short", hairColor:"brown-dark", eyeColor:"dark", skin:"olive",
+    color:"#00bcd4", bg:"#c8eff5",
+  },
+];
+
+// ─────────────────────────────────────────────
+// DEFAULT ATTIVITÀ
+// ─────────────────────────────────────────────
+const DEFAULT_ACTIVITIES = [
+  { id:"a1", name:"Workout completato", points:10, icon:"💪" },
+  { id:"a2", name:"Bevuto 2L d'acqua", points:5, icon:"💧" },
+  { id:"a3", name:"Dormito 8 ore", points:8, icon:"😴" },
+  { id:"a4", name:"Letto 30 min", points:6, icon:"📚" },
+  { id:"a5", name:"Mangiato sano", points:7, icon:"🥗" },
+  { id:"a6", name:"Saltato l'allenamento", points:-8, icon:"❌" },
+  { id:"a7", name:"Junk food", points:-5, icon:"🍕" },
+  { id:"a8", name:"Social media > 2h", points:-4, icon:"📱" },
+];
+
+// ─────────────────────────────────────────────
+// STORAGE
+// ─────────────────────────────────────────────
+const STORE_KEY = "weekgame_v2";
+const load = () => { try { return JSON.parse(localStorage.getItem(STORE_KEY)) || {}; } catch { return {}; } };
+const save = d => localStorage.setItem(STORE_KEY, JSON.stringify(d));
+function initStore() {
+  const s = load();
+  if (!s.players) s.players = {};
+  if (!s.activities) s.activities = DEFAULT_ACTIVITIES;
+  if (!s.logs) s.logs = {};
+  save(s); return s;
+}
+
+// ─────────────────────────────────────────────
+// CHARACTER SELECT
+// ─────────────────────────────────────────────
+function CharacterSelect({ onSelect, takenIds }) {
+  const [hover, setHover] = useState(null);
+  const [adminInput, setAdminInput] = useState("");
+
+  function tryAdmin() {
+    if (ADMIN_CODES.includes(adminInput.trim().toUpperCase())) onSelect(null, true);
+    else alert("Codice admin non valido!");
+  }
+
+  return (
+    <div style={{
+      minHeight:"100vh",
+      background:"linear-gradient(135deg,#0f0c29,#302b63,#24243e)",
+      display:"flex", flexDirection:"column", alignItems:"center", padding:"32px 16px",
+    }}>
+      <div style={{ textAlign:"center", marginBottom:36 }}>
+        <div style={{ fontSize:52 }}>🏆</div>
+        <h1 style={{ color:"#fff", fontSize:34, fontWeight:900, marginTop:8, letterSpacing:1 }}>Week Game</h1>
+        <p style={{ color:"#ffffff77", marginTop:8, fontSize:15 }}>Scegli il tuo personaggio per iniziare!</p>
+      </div>
+
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(145px,1fr))", gap:14, width:"100%", maxWidth:780, marginBottom:40 }}>
+        {CHARACTERS.map(c => {
+          const taken = takenIds.includes(c.id);
+          const hov = hover === c.id;
+          return (
+            <div key={c.id}
+              onClick={() => !taken && onSelect(c, false)}
+              onMouseEnter={() => setHover(c.id)}
+              onMouseLeave={() => setHover(null)}
+              style={{
+                background: hov && !taken ? `${c.color}22` : "#ffffff08",
+                border:`2px solid ${taken ? "#ffffff18" : hov ? c.color : "#ffffff1a"}`,
+                borderRadius:18, padding:"20px 10px 16px", textAlign:"center",
+                cursor: taken ? "not-allowed" : "pointer",
+                opacity: taken ? 0.45 : 1,
+                transform: hov && !taken ? "translateY(-5px)" : "none",
+                boxShadow: hov && !taken ? `0 10px 28px ${c.color}44` : "none",
+                transition:"all 0.2s", position:"relative",
+              }}
+            >
+              {taken && (
+                <div style={{ position:"absolute", top:8, right:8, background:"#ffffff22", borderRadius:20, fontSize:10, padding:"2px 7px", color:"#fff", fontWeight:800 }}>IN USO</div>
+              )}
+              <div style={{ borderRadius:"50%", overflow:"hidden", width:80, height:80, margin:"0 auto 10px", boxShadow:`0 0 18px ${c.color}55` }}>
+                <AvatarSVG char={c} size={80} />
+              </div>
+              <div style={{ color:"#fff", fontWeight:800, fontSize:15 }}>{c.name}</div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ADMIN */}
+      <div style={{ background:"#ffffff0a", border:"1px solid #ffffff1a", borderRadius:18, padding:"20px 28px", width:"100%", maxWidth:360, textAlign:"center" }}>
+        <p style={{ color:"#ffffff55", fontSize:13, marginBottom:12 }}>🔐 Accesso Admin</p>
+        <div style={{ display:"flex", gap:8 }}>
+          <input value={adminInput} onChange={e => setAdminInput(e.target.value)}
+            onKeyDown={e => e.key==="Enter" && tryAdmin()}
+            placeholder="Codice admin..."
+            style={{ flex:1, padding:"10px 14px", borderRadius:10, border:"1px solid #ffffff2a", background:"#ffffff0f", color:"#fff", fontSize:14, outline:"none", fontFamily:"Nunito,sans-serif" }}
+          />
+          <button onClick={tryAdmin} style={{ padding:"10px 18px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#6c63ff,#3a3a9f)", color:"#fff", fontWeight:700, cursor:"pointer", fontSize:14, fontFamily:"Nunito,sans-serif" }}>Entra</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// DASHBOARD
+// ─────────────────────────────────────────────
+function Dashboard({ player, store, onSave, onLogout, isAdmin }) {
+  const [tab, setTab] = useState("log");
+  const [selectedId, setSelectedId] = useState(player?.id);
+
+  const char = CHARACTERS.find(c => c.id === (isAdmin ? selectedId : player?.id));
+  const logs = store.logs[selectedId] || [];
+  const today = new Date().toISOString().split("T")[0];
+  const todayLogs = logs.filter(l => l.date === today);
+  const totalPoints = logs.reduce((s,l) => s + l.points, 0);
+  const todayPoints = todayLogs.reduce((s,l) => s + l.points, 0);
+
+  function addActivity(act) {
+    const ns = { ...store };
+    if (!ns.logs[selectedId]) ns.logs[selectedId] = [];
+    ns.logs[selectedId] = [...ns.logs[selectedId], { activityId:act.id, date:today, points:act.points, icon:act.icon, name:act.name }];
+    onSave(ns);
+  }
+
+  function removeActivity(globalIdx) {
+    const ns = { ...store };
+    const arr = [...(ns.logs[selectedId] || [])];
+    arr.splice(globalIdx, 1);
+    ns.logs[selectedId] = arr;
+    onSave(ns);
+  }
+
+  // map today logs to their global index
+  const todayWithIdx = logs.reduce((acc, l, i) => { if (l.date === today) acc.push({ ...l, idx: i }); return acc; }, []);
+
+  return (
+    <div style={{ minHeight:"100vh", background:"linear-gradient(135deg,#0f0c29,#1a1a3e)", color:"#fff" }}>
+      {/* HEADER */}
+      <div style={{ background:"#ffffff08", backdropFilter:"blur(12px)", borderBottom:"1px solid #ffffff12", padding:"12px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:100 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+          {isAdmin
+            ? <span style={{ fontSize:28 }}>🔐</span>
+            : char && <div style={{ borderRadius:"50%", overflow:"hidden", width:42, height:42, flexShrink:0, boxShadow:`0 0 12px ${char.color}66` }}><AvatarSVG char={char} size={42} /></div>
+          }
+          <div>
+            <div style={{ fontWeight:800, fontSize:16 }}>{isAdmin ? "Admin Panel" : char?.name}</div>
+            {!isAdmin && <div style={{ color:"#ffffff55", fontSize:12 }}>{totalPoints >= 0 ? "+" : ""}{totalPoints} pt totali</div>}
+          </div>
+        </div>
+        <button onClick={onLogout} style={{ background:"#ffffff12", border:"1px solid #ffffff20", borderRadius:10, color:"#fff", padding:"8px 16px", cursor:"pointer", fontSize:13, fontWeight:700, fontFamily:"Nunito,sans-serif" }}>Esci</button>
+      </div>
+
+      {/* TABS */}
+      <div style={{ display:"flex", borderBottom:"1px solid #ffffff12" }}>
+        {[["log","📋 Attività",true],["rank","🏆 Classifica",true],["admin","⚙️ Admin",isAdmin]].filter(t=>t[2]).map(([id,label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ flex:1, padding:"14px 8px", border:"none", background:tab===id?"#ffffff12":"transparent", color:tab===id?"#fff":"#ffffff44", fontWeight:tab===id?800:600, cursor:"pointer", fontSize:14, fontFamily:"Nunito,sans-serif", borderBottom:tab===id?"2px solid #6c63ff":"2px solid transparent", transition:"all 0.2s" }}>{label}</button>
+        ))}
+      </div>
+
+      <div style={{ padding:"20px 16px", maxWidth:680, margin:"0 auto" }}>
+
+        {/* LOG */}
+        {tab==="log" && (
+          <div>
+            {isAdmin && (
+              <div style={{ marginBottom:20 }}>
+                <p style={{ color:"#ffffff55", fontSize:13, marginBottom:10 }}>Profilo selezionato:</p>
+                <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
+                  {CHARACTERS.filter(c => store.players[c.id]).map(c => (
+                    <button key={c.id} onClick={() => setSelectedId(c.id)} style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 14px", borderRadius:20, border:`2px solid ${selectedId===c.id?c.color:"#ffffff22"}`, background:selectedId===c.id?`${c.color}22`:"transparent", color:"#fff", cursor:"pointer", fontWeight:700, fontSize:13, fontFamily:"Nunito,sans-serif" }}>
+                      <div style={{ borderRadius:"50%", overflow:"hidden", width:24, height:24 }}><AvatarSVG char={c} size={24} /></div>
+                      {c.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {char && <>
+              <h2 style={{ fontSize:17, fontWeight:800, marginBottom:4 }}>
+                {new Date().toLocaleDateString("it-IT",{weekday:"long",day:"numeric",month:"long"})}
+              </h2>
+              <p style={{ color:"#ffffff44", fontSize:13, marginBottom:20 }}>
+                Oggi: <span style={{ color:todayPoints>=0?"#2ecc71":"#e74c3c", fontWeight:800 }}>{todayPoints>=0?"+":""}{todayPoints}</span> pt
+              </p>
+
+              {todayWithIdx.length > 0 && (
+                <div style={{ marginBottom:24 }}>
+                  <p style={{ color:"#ffffff66", fontSize:13, fontWeight:700, marginBottom:10 }}>✅ Registrate oggi:</p>
+                  {todayWithIdx.map(l => (
+                    <div key={l.idx} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:"#ffffff09", borderRadius:12, padding:"11px 15px", marginBottom:8, border:`1px solid ${l.points>=0?"#2ecc7133":"#e74c3c33"}` }}>
+                      <span style={{ fontSize:15 }}>{l.icon} {l.name}</span>
+                      <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                        <span style={{ color:l.points>=0?"#2ecc71":"#e74c3c", fontWeight:800, fontSize:16 }}>{l.points>=0?"+":""}{l.points}</span>
+                        <button onClick={() => removeActivity(l.idx)} style={{ background:"#ffffff12", border:"none", borderRadius:6, color:"#ffffff77", cursor:"pointer", padding:"4px 9px", fontSize:12, fontFamily:"Nunito,sans-serif" }}>✕</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <p style={{ color:"#ffffff66", fontSize:13, fontWeight:700, marginBottom:12 }}>➕ Aggiungi attività:</p>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+                {store.activities.map(act => (
+                  <button key={act.id} onClick={() => addActivity(act)} style={{ display:"flex", alignItems:"center", gap:10, background:act.points>=0?"#2ecc7112":"#e74c3c12", border:`1px solid ${act.points>=0?"#2ecc7130":"#e74c3c30"}`, borderRadius:14, padding:"13px 15px", cursor:"pointer", color:"#fff", fontWeight:700, fontSize:14, textAlign:"left", fontFamily:"Nunito,sans-serif", transition:"all 0.15s" }}>
+                    <span style={{ fontSize:22 }}>{act.icon}</span>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontSize:13, lineHeight:1.3 }}>{act.name}</div>
+                      <div style={{ color:act.points>=0?"#2ecc71":"#e74c3c", fontSize:13, fontWeight:900 }}>{act.points>=0?"+":""}{act.points} pt</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </>}
+          </div>
+        )}
+
+        {/* CLASSIFICA */}
+        {tab==="rank" && <Leaderboard store={store} currentId={player?.id} />}
+
+        {/* ADMIN */}
+        {tab==="admin" && isAdmin && <AdminPanel store={store} onSave={onSave} />}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// LEADERBOARD
+// ─────────────────────────────────────────────
+function Leaderboard({ store, currentId }) {
+  const ranked = CHARACTERS
+    .filter(c => store.players[c.id])
+    .map(c => {
+      const logs = store.logs[c.id] || [];
+      const total = logs.reduce((s,l) => s+l.points, 0);
+      const today = new Date().toISOString().split("T")[0];
+      const todayPts = logs.filter(l => l.date===today).reduce((s,l) => s+l.points, 0);
+      return { ...c, total, todayPts };
+    })
+    .sort((a,b) => b.total - a.total);
+
+  const medals = ["🥇","🥈","🥉"];
+
+  return (
+    <div>
+      <h2 style={{ fontSize:22, fontWeight:900, marginBottom:4 }}>🏆 Classifica</h2>
+      <p style={{ color:"#ffffff44", fontSize:13, marginBottom:24 }}>Aggiornata: {new Date().toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"})}</p>
+
+      {ranked.length === 0 && (
+        <div style={{ textAlign:"center", color:"#ffffff33", padding:40 }}>
+          <div style={{ fontSize:48 }}>👥</div>
+          <p style={{ marginTop:12 }}>Nessun giocatore ancora</p>
+        </div>
+      )}
+
+      {ranked.map((c,i) => (
+        <div key={c.id} style={{ display:"flex", alignItems:"center", gap:14, background:c.id===currentId?`${c.color}22`:"#ffffff08", border:`2px solid ${c.id===currentId?c.color:i===0?"#f1c40f44":"#ffffff12"}`, borderRadius:16, padding:"14px 18px", marginBottom:10, transform:i===0?"scale(1.02)":"none", boxShadow:i===0?"0 4px 20px #f1c40f22":"none" }}>
+          <div style={{ fontSize:26, minWidth:32, textAlign:"center" }}>{medals[i]||`${i+1}.`}</div>
+          <div style={{ borderRadius:"50%", overflow:"hidden", width:48, height:48, flexShrink:0, boxShadow:`0 0 12px ${c.color}55` }}><AvatarSVG char={c} size={48} /></div>
+          <div style={{ flex:1 }}>
+            <div style={{ fontWeight:800, fontSize:16 }}>{c.name} {c.id===currentId&&<span style={{ fontSize:12, color:c.color }}>(tu)</span>}</div>
+            <div style={{ color:"#ffffff44", fontSize:12 }}>Oggi: <span style={{ color:c.todayPts>=0?"#2ecc71":"#e74c3c", fontWeight:700 }}>{c.todayPts>=0?"+":""}{c.todayPts}</span></div>
+          </div>
+          <div style={{ fontSize:22, fontWeight:900, color:c.total>=0?"#2ecc71":"#e74c3c" }}>{c.total>=0?"+":""}{c.total}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// ADMIN PANEL
+// ─────────────────────────────────────────────
+function AdminPanel({ store, onSave }) {
+  const [newAct, setNewAct] = useState({ name:"", points:"", icon:"⭐" });
+  const [msg, setMsg] = useState("");
+
+  const inp = { padding:"10px 14px", borderRadius:10, border:"1px solid #ffffff2a", background:"#ffffff0f", color:"#fff", fontSize:14, outline:"none", fontFamily:"Nunito,sans-serif" };
+
+  function addActivity() {
+    if (!newAct.name || !newAct.points) { alert("Compila nome e punti!"); return; }
+    const ns = { ...store, activities: [...store.activities, { ...newAct, id:"a"+Date.now(), points:Number(newAct.points) }] };
+    onSave(ns); setNewAct({ name:"", points:"", icon:"⭐" });
+    setMsg("✅ Aggiunta!"); setTimeout(() => setMsg(""), 2000);
+  }
+
+  function removeActivity(id) { onSave({ ...store, activities: store.activities.filter(a => a.id!==id) }); }
+
+  function resetAll() {
+    if (!confirm("Sei sicuro? Tutti i punti verranno azzerati!")) return;
+    onSave({ ...store, logs:{} });
+  }
+
+  return (
+    <div>
+      <h2 style={{ fontSize:22, fontWeight:900, marginBottom:24 }}>⚙️ Admin</h2>
+
+      <h3 style={{ fontSize:15, fontWeight:800, color:"#ffffff66", marginBottom:12 }}>👥 Giocatori registrati</h3>
+      <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:32 }}>
+        {CHARACTERS.filter(c => store.players[c.id]).map(c => (
+          <div key={c.id} style={{ display:"flex", alignItems:"center", gap:8, background:`${c.color}22`, border:`1px solid ${c.color}44`, borderRadius:20, padding:"7px 14px" }}>
+            <div style={{ borderRadius:"50%", overflow:"hidden", width:24, height:24 }}><AvatarSVG char={c} size={24} /></div>
+            <span style={{ color:"#fff", fontWeight:700, fontSize:14 }}>{c.name}</span>
+          </div>
+        ))}
+        {CHARACTERS.filter(c=>store.players[c.id]).length===0 && <p style={{ color:"#ffffff33", fontSize:14 }}>Nessuno ancora</p>}
+      </div>
+
+      <h3 style={{ fontSize:15, fontWeight:800, color:"#ffffff66", marginBottom:12 }}>➕ Nuova attività</h3>
+      <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:8 }}>
+        <input value={newAct.icon} onChange={e=>setNewAct({...newAct,icon:e.target.value})} style={{ ...inp, width:52 }} maxLength={2} />
+        <input value={newAct.name} onChange={e=>setNewAct({...newAct,name:e.target.value})} placeholder="Nome attività" style={{ ...inp, flex:1, minWidth:140 }} />
+        <input value={newAct.points} onChange={e=>setNewAct({...newAct,points:e.target.value})} type="number" placeholder="Punti" style={{ ...inp, width:88 }} />
+        <button onClick={addActivity} style={{ padding:"10px 18px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#2ecc71,#27ae60)", color:"#fff", fontWeight:700, cursor:"pointer", fontFamily:"Nunito,sans-serif" }}>Aggiungi</button>
+      </div>
+      {msg && <p style={{ color:"#2ecc71", fontSize:13, marginBottom:8 }}>{msg}</p>}
+
+      <h3 style={{ fontSize:15, fontWeight:800, color:"#ffffff66", margin:"24px 0 12px" }}>📋 Attività</h3>
+      {store.activities.map(a => (
+        <div key={a.id} style={{ display:"flex", alignItems:"center", gap:12, background:"#ffffff08", borderRadius:12, padding:"11px 14px", marginBottom:8 }}>
+          <span style={{ fontSize:18 }}>{a.icon}</span>
+          <span style={{ flex:1, fontSize:14 }}>{a.name}</span>
+          <span style={{ color:a.points>=0?"#2ecc71":"#e74c3c", fontWeight:800 }}>{a.points>=0?"+":""}{a.points}</span>
+          <button onClick={() => removeActivity(a.id)} style={{ background:"#e74c3c20", border:"1px solid #e74c3c44", borderRadius:8, color:"#e74c3c", cursor:"pointer", padding:"4px 10px", fontFamily:"Nunito,sans-serif" }}>✕</button>
+        </div>
+      ))}
+
+      <button onClick={resetAll} style={{ marginTop:28, padding:"12px 24px", borderRadius:12, border:"1px solid #e74c3c55", background:"#e74c3c18", color:"#e74c3c", fontWeight:800, cursor:"pointer", fontSize:14, fontFamily:"Nunito,sans-serif" }}>⚠️ Azzera tutti i punti</button>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// APP ROOT
+// ─────────────────────────────────────────────
+function App() {
+  const [store, setStore] = useState(() => initStore());
+  const [currentPlayer, setCurrentPlayer] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    const iv = setInterval(() => setStore(load()), 8000);
+    return () => clearInterval(iv);
+  }, []);
+
+  function saveStore(ns) { save(ns); setStore(ns); }
+
+  function handleSelect(char, admin) {
+    if (admin) { setIsAdmin(true); setCurrentPlayer(null); return; }
+    const ns = { ...store };
+    ns.players[char.id] = { joinedAt: new Date().toISOString() };
+    saveStore(ns);
+    setCurrentPlayer(char); setIsAdmin(false);
+  }
+
+  function handleLogout() { setCurrentPlayer(null); setIsAdmin(false); }
+
+  const takenIds = Object.keys(store.players);
+
+  if (!currentPlayer && !isAdmin) return <CharacterSelect onSelect={handleSelect} takenIds={takenIds} />;
+
+  return <Dashboard player={currentPlayer} store={store} onSave={saveStore} onLogout={handleLogout} isAdmin={isAdmin} />;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
