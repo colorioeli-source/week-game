@@ -306,7 +306,7 @@ const DEFAULT_ACTIVITIES = [
 // ─────────────────────────────────────────────
 // STORAGE
 // ─────────────────────────────────────────────
-const STORE_KEY = "weekgame_v2";
+const STORE_KEY = "weekgame_v3";
 const load = () => { try { return JSON.parse(localStorage.getItem(STORE_KEY)) || {}; } catch { return {}; } };
 const save = d => localStorage.setItem(STORE_KEY, JSON.stringify(d));
 function initStore() {
