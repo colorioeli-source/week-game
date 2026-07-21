@@ -256,6 +256,45 @@ const CHARACTERS = [
 ];
 
 // ─────────────────────────────────────────────
+// ARBITRI — catena di validazione
+// Ogni arbitro valida i punti dell'arbitrato (arbitro : arbitrato).
+// Fase 2 = Pietro (p10) e Virginia (p5) sono partiti → Gaia arbitra Federica.
+// ─────────────────────────────────────────────
+const REFEREE_FULL = {
+  p3:"p7",   // Federica → Simone
+  p7:"p12",  // Simone   → Lorenzo
+  p12:"p9",  // Lorenzo  → Daniele
+  p9:"p1",   // Daniele  → Elisa
+  p1:"p8",   // Elisa    → Gianluca
+  p8:"p6",   // Gianluca → Marzia
+  p6:"p4",   // Marzia   → Arianna
+  p4:"p11",  // Arianna  → Alessio
+  p11:"p2",  // Alessio  → Gaia
+  p2:"p10",  // Gaia     → Pietro
+  p10:"p5",  // Pietro   → Virginia
+  p5:"p3",   // Virginia → Federica
+};
+const REFEREE_REDUCED = {
+  p3:"p7", p7:"p12", p12:"p9", p9:"p1", p1:"p8", p8:"p6",
+  p6:"p4", p4:"p11", p11:"p2",
+  p2:"p3",   // Gaia → Federica (Pietro e Virginia partiti)
+};
+const DEPARTED_IDS = ["p10","p5"]; // Pietro, Virginia
+
+function refereeMap(phase2){ return phase2 ? REFEREE_REDUCED : REFEREE_FULL; }
+// chi devi arbitrare tu (arbitro → arbitrato)
+function subjectOf(refereeId, phase2){ return refereeMap(phase2)[refereeId] || null; }
+// chi arbitra te (arbitrato → arbitro)
+function judgeOf(playerId, phase2){
+  const m = refereeMap(phase2);
+  for (const arb in m) if (m[arb] === playerId) return arb;
+  return null;
+}
+
+// id univoco per ogni voce del log
+const uid = () => "l" + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+
+// ─────────────────────────────────────────────
 // DEFAULT ATTIVITÀ
 // ─────────────────────────────────────────────
 const DEFAULT_ACTIVITIES = [
@@ -314,6 +353,15 @@ function initStore() {
   if (!s.players) s.players = {};
   if (!s.activities) s.activities = DEFAULT_ACTIVITIES;
   if (!s.logs) s.logs = {};
+  if (typeof s.phase2 !== "boolean") s.phase2 = false;
+  // migrazione: ogni voce deve avere id e status
+  Object.keys(s.logs).forEach(pid => {
+    s.logs[pid] = (s.logs[pid] || []).map(l => ({
+      ...l,
+      id: l.id || uid(),
+      status: l.status || "approved", // voci preesistenti: già valide
+    }));
+  });
   save(s); return s;
 }
 
@@ -396,30 +444,32 @@ function Dashboard({ player, store, onSave, onLogout, isAdmin }) {
   const [tab, setTab] = useState("log");
   const [selectedId, setSelectedId] = useState(player?.id);
 
+  const phase2 = !!store.phase2;
   const char = CHARACTERS.find(c => c.id === (isAdmin ? selectedId : player?.id));
   const logs = store.logs[selectedId] || [];
   const today = new Date().toISOString().split("T")[0];
+  const isApproved = l => l.status !== "pending";
   const todayLogs = logs.filter(l => l.date === today);
-  const totalPoints = logs.reduce((s,l) => s + l.points, 0);
-  const todayPoints = todayLogs.reduce((s,l) => s + l.points, 0);
+  const totalPoints = logs.filter(isApproved).reduce((s,l) => s + l.points, 0);
+  const pendingPoints = logs.filter(l => !isApproved(l)).reduce((s,l) => s + l.points, 0);
+  const todayPoints = todayLogs.filter(isApproved).reduce((s,l) => s + l.points, 0);
 
+  // l'admin inserisce già approvato; il partecipante inserisce "in approvazione"
   function addActivity(act) {
     const ns = { ...store };
     if (!ns.logs[selectedId]) ns.logs[selectedId] = [];
-    ns.logs[selectedId] = [...ns.logs[selectedId], { activityId:act.id, date:today, points:act.points, icon:act.icon, name:act.name }];
+    ns.logs[selectedId] = [...ns.logs[selectedId], {
+      id: uid(), activityId:act.id, date:today, points:act.points, icon:act.icon, name:act.name,
+      status: isAdmin ? "approved" : "pending",
+    }];
     onSave(ns);
   }
 
-  function removeActivity(globalIdx) {
+  function removeLog(logId) {
     const ns = { ...store };
-    const arr = [...(ns.logs[selectedId] || [])];
-    arr.splice(globalIdx, 1);
-    ns.logs[selectedId] = arr;
+    ns.logs[selectedId] = (ns.logs[selectedId] || []).filter(l => l.id !== logId);
     onSave(ns);
   }
-
-  // map today logs to their global index
-  const todayWithIdx = logs.reduce((acc, l, i) => { if (l.date === today) acc.push({ ...l, idx: i }); return acc; }, []);
 
   return (
     <div style={{ minHeight:"100vh", background:"linear-gradient(135deg,#0f0c29,#1a1a3e)", color:"#fff" }}>
@@ -432,7 +482,7 @@ function Dashboard({ player, store, onSave, onLogout, isAdmin }) {
           }
           <div>
             <div style={{ fontWeight:800, fontSize:16 }}>{isAdmin ? "Admin Panel" : char?.name}</div>
-            {!isAdmin && <div style={{ color:"#ffffff55", fontSize:12 }}>{totalPoints >= 0 ? "+" : ""}{totalPoints} pt totali</div>}
+            {!isAdmin && <div style={{ color:"#ffffff55", fontSize:12 }}>{totalPoints >= 0 ? "+" : ""}{totalPoints} pt {pendingPoints !== 0 && <span style={{ color:"#f39c12", fontWeight:700 }}>({pendingPoints>=0?"+":""}{pendingPoints} in attesa)</span>}</div>}
           </div>
         </div>
         <button onClick={onLogout} style={{ background:"#ffffff12", border:"1px solid #ffffff20", borderRadius:10, color:"#fff", padding:"8px 16px", cursor:"pointer", fontSize:13, fontWeight:700, fontFamily:"Nunito,sans-serif" }}>Esci</button>
@@ -440,7 +490,7 @@ function Dashboard({ player, store, onSave, onLogout, isAdmin }) {
 
       {/* TABS */}
       <div style={{ display:"flex", borderBottom:"1px solid #ffffff12" }}>
-        {[["log","📋 Attività",true],["rank","🏆 Classifica",true],["admin","⚙️ Admin",isAdmin]].filter(t=>t[2]).map(([id,label]) => (
+        {[["log","📋 Attività",true],["approve","⏳ In approvazione",true],["rank","🏆 Classifica",true],["admin","⚙️ Admin",isAdmin]].filter(t=>t[2]).map(([id,label]) => (
           <button key={id} onClick={() => setTab(id)} style={{ flex:1, padding:"14px 8px", border:"none", background:tab===id?"#ffffff12":"transparent", color:tab===id?"#fff":"#ffffff44", fontWeight:tab===id?800:600, cursor:"pointer", fontSize:14, fontFamily:"Nunito,sans-serif", borderBottom:tab===id?"2px solid #6c63ff":"2px solid transparent", transition:"all 0.2s" }}>{label}</button>
         ))}
       </div>
@@ -472,15 +522,24 @@ function Dashboard({ player, store, onSave, onLogout, isAdmin }) {
                 Oggi: <span style={{ color:todayPoints>=0?"#2ecc71":"#e74c3c", fontWeight:800 }}>{todayPoints>=0?"+":""}{todayPoints}</span> pt
               </p>
 
-              {todayWithIdx.length > 0 && (
+              {todayLogs.length > 0 && (
                 <div style={{ marginBottom:24 }}>
-                  <p style={{ color:"#ffffff66", fontSize:13, fontWeight:700, marginBottom:10 }}>✅ Registrate oggi:</p>
-                  {todayWithIdx.map(l => (
-                    <div key={l.idx} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:"#ffffff09", borderRadius:12, padding:"11px 15px", marginBottom:8, border:`1px solid ${l.points>=0?"#2ecc7133":"#e74c3c33"}` }}>
-                      <span style={{ fontSize:15 }}>{l.icon} {l.name}</span>
+                  <p style={{ color:"#ffffff66", fontSize:13, fontWeight:700, marginBottom:10 }}>📋 Registrate oggi:</p>
+                  {todayLogs.map(l => (
+                    <div key={l.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:"#ffffff09", borderRadius:12, padding:"11px 15px", marginBottom:8, border:`1px solid ${l.points>=0?"#2ecc7133":"#e74c3c33"}`, opacity:isApproved(l)?1:0.75 }}>
+                      <span style={{ fontSize:15 }}>
+                        {l.icon} {l.name}
+                        {l.byRef && <span style={{ marginLeft:8, fontSize:11, fontWeight:800, color:"#9b6bff", background:"#9b6bff20", borderRadius:8, padding:"2px 7px" }}>🧑‍⚖️ arbitro</span>}
+                        {isApproved(l)
+                          ? <span style={{ marginLeft:8, fontSize:11, fontWeight:800, color:"#2ecc71", background:"#2ecc7120", borderRadius:8, padding:"2px 7px" }}>✅ ok</span>
+                          : <span style={{ marginLeft:8, fontSize:11, fontWeight:800, color:"#f39c12", background:"#f39c1220", borderRadius:8, padding:"2px 7px" }}>⏳ in attesa</span>
+                        }
+                      </span>
                       <div style={{ display:"flex", alignItems:"center", gap:10 }}>
                         <span style={{ color:l.points>=0?"#2ecc71":"#e74c3c", fontWeight:800, fontSize:16 }}>{l.points>=0?"+":""}{l.points}</span>
-                        <button onClick={() => removeActivity(l.idx)} style={{ background:"#ffffff12", border:"none", borderRadius:6, color:"#ffffff77", cursor:"pointer", padding:"4px 9px", fontSize:12, fontFamily:"Nunito,sans-serif" }}>✕</button>
+                        {(isAdmin || !isApproved(l)) && (
+                          <button onClick={() => removeLog(l.id)} title="Rimuovi" style={{ background:"#ffffff12", border:"none", borderRadius:6, color:"#ffffff77", cursor:"pointer", padding:"4px 9px", fontSize:12, fontFamily:"Nunito,sans-serif" }}>✕</button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -503,6 +562,9 @@ function Dashboard({ player, store, onSave, onLogout, isAdmin }) {
           </div>
         )}
 
+        {/* IN APPROVAZIONE */}
+        {tab==="approve" && <ApprovalScreen store={store} onSave={onSave} isAdmin={isAdmin} myId={player?.id} phase2={phase2} />}
+
         {/* CLASSIFICA */}
         {tab==="rank" && <Leaderboard store={store} currentId={player?.id} />}
 
@@ -514,17 +576,161 @@ function Dashboard({ player, store, onSave, onLogout, isAdmin }) {
 }
 
 // ─────────────────────────────────────────────
+// IN APPROVAZIONE (arbitri)
+// ─────────────────────────────────────────────
+function PendingRow({ log, onApprove, onReject }) {
+  return (
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:"#ffffff09", borderRadius:12, padding:"11px 14px", marginBottom:8, border:`1px solid ${log.points>=0?"#2ecc7133":"#e74c3c33"}` }}>
+      <span style={{ fontSize:15, flex:1 }}>{log.icon} {log.name}</span>
+      <span style={{ color:log.points>=0?"#2ecc71":"#e74c3c", fontWeight:800, fontSize:16, marginRight:12, minWidth:42, textAlign:"right" }}>{log.points>=0?"+":""}{log.points}</span>
+      <div style={{ display:"flex", gap:6 }}>
+        <button onClick={onApprove} title="Approva" style={{ background:"#2ecc7122", border:"1px solid #2ecc7155", borderRadius:8, color:"#2ecc71", cursor:"pointer", padding:"6px 10px", fontWeight:800, fontFamily:"Nunito,sans-serif" }}>✓</button>
+        <button onClick={onReject} title="Rifiuta" style={{ background:"#e74c3c22", border:"1px solid #e74c3c55", borderRadius:8, color:"#e74c3c", cursor:"pointer", padding:"6px 10px", fontWeight:800, fontFamily:"Nunito,sans-serif" }}>✕</button>
+      </div>
+    </div>
+  );
+}
+
+function ApprovalScreen({ store, onSave, isAdmin, myId, phase2 }) {
+  const today = new Date().toISOString().split("T")[0];
+  const pendingOf = pid => (store.logs[pid] || []).filter(l => l.status === "pending");
+  const malusActs = store.activities.filter(a => a.points < 0);
+
+  function approve(pid, logId) {
+    const ns = { ...store };
+    ns.logs[pid] = (ns.logs[pid] || []).map(l => l.id === logId ? { ...l, status:"approved" } : l);
+    onSave(ns);
+  }
+  function reject(pid, logId) {
+    const ns = { ...store };
+    ns.logs[pid] = (ns.logs[pid] || []).filter(l => l.id !== logId);
+    onSave(ns);
+  }
+  function approveAll(pid) {
+    const ns = { ...store };
+    ns.logs[pid] = (ns.logs[pid] || []).map(l => l.status === "pending" ? { ...l, status:"approved" } : l);
+    onSave(ns);
+  }
+  function addMalus(pid, act) {
+    const ns = { ...store };
+    if (!ns.logs[pid]) ns.logs[pid] = [];
+    ns.logs[pid] = [...ns.logs[pid], {
+      id: uid(), activityId:act.id, date:today, points:act.points, icon:act.icon, name:act.name,
+      status:"approved", byRef:true,
+    }];
+    onSave(ns);
+  }
+
+  const h2 = { fontSize:22, fontWeight:900, marginBottom:4 };
+  const h3 = { fontSize:15, fontWeight:800, color:"#ffffff88", margin:"22px 0 12px" };
+  const empty = txt => <p style={{ color:"#ffffff33", fontSize:14, fontStyle:"italic", padding:"6px 0" }}>{txt}</p>;
+
+  // ─── VISTA ADMIN: tutte le approvazioni ───
+  if (isAdmin) {
+    const withPending = CHARACTERS.filter(c => pendingOf(c.id).length > 0);
+    return (
+      <div>
+        <h2 style={h2}>⏳ In approvazione</h2>
+        <p style={{ color:"#ffffff44", fontSize:13, marginBottom:12 }}>Panoramica admin — puoi approvare o rifiutare qualsiasi voce.</p>
+        {withPending.length === 0 && empty("Nessun punto in attesa. Tutto validato! ✅")}
+        {withPending.map(c => (
+          <div key={c.id} style={{ marginBottom:24 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
+              <div style={{ borderRadius:"50%", overflow:"hidden", width:32, height:32 }}><AvatarSVG char={c} size={32} /></div>
+              <span style={{ fontWeight:800, fontSize:16 }}>{c.name}</span>
+              <span style={{ color:"#ffffff44", fontSize:12 }}>arbitro: {CHARACTERS.find(x=>x.id===judgeOf(c.id, phase2))?.name || "—"}</span>
+              <button onClick={() => approveAll(c.id)} style={{ marginLeft:"auto", background:"#2ecc7118", border:"1px solid #2ecc7144", borderRadius:8, color:"#2ecc71", cursor:"pointer", padding:"5px 12px", fontWeight:700, fontSize:12, fontFamily:"Nunito,sans-serif" }}>Approva tutti</button>
+            </div>
+            {pendingOf(c.id).map(l => (
+              <PendingRow key={l.id} log={l} onApprove={() => approve(c.id, l.id)} onReject={() => reject(c.id, l.id)} />
+            ))}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // ─── VISTA PARTECIPANTE ───
+  const subjectId = subjectOf(myId, phase2);
+  const subject = CHARACTERS.find(c => c.id === subjectId);
+  const subjectPending = subjectId ? pendingOf(subjectId) : [];
+  const myJudge = CHARACTERS.find(c => c.id === judgeOf(myId, phase2));
+  const myPending = pendingOf(myId);
+
+  return (
+    <div>
+      <h2 style={h2}>⏳ In approvazione</h2>
+
+      {/* Ruolo arbitro */}
+      <div style={{ background:"#9b6bff14", border:"1px solid #9b6bff33", borderRadius:16, padding:"16px 18px", margin:"14px 0 6px", display:"flex", alignItems:"center", gap:14 }}>
+        {subject ? (
+          <>
+            <div style={{ borderRadius:"50%", overflow:"hidden", width:48, height:48, flexShrink:0, boxShadow:`0 0 12px ${subject.color}55` }}><AvatarSVG char={subject} size={48} /></div>
+            <div>
+              <div style={{ color:"#ffffff88", fontSize:12, fontWeight:700 }}>🧑‍⚖️ Stai arbitrando</div>
+              <div style={{ fontWeight:900, fontSize:20 }}>{subject.name}</div>
+            </div>
+          </>
+        ) : (
+          <div style={{ fontSize:15 }}>🎉 In questa fase non arbitri nessuno.</div>
+        )}
+      </div>
+
+      {subject && <>
+        <h3 style={h3}>Punti di {subject.name} da validare</h3>
+        {subjectPending.length === 0
+          ? empty(`Nessun punto in attesa da ${subject.name}.`)
+          : <>
+              <button onClick={() => approveAll(subjectId)} style={{ marginBottom:12, background:"#2ecc7118", border:"1px solid #2ecc7144", borderRadius:10, color:"#2ecc71", cursor:"pointer", padding:"8px 16px", fontWeight:800, fontSize:13, fontFamily:"Nunito,sans-serif" }}>✓ Approva tutti</button>
+              {subjectPending.map(l => (
+                <PendingRow key={l.id} log={l} onApprove={() => approve(subjectId, l.id)} onReject={() => reject(subjectId, l.id)} />
+              ))}
+            </>
+        }
+
+        <h3 style={h3}>➕ Suggerisci un malus a {subject.name}</h3>
+        <p style={{ color:"#ffffff44", fontSize:12, marginBottom:12 }}>Come arbitro puoi (e devi!) assegnare malus. Vengono conteggiati subito.</p>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+          {malusActs.map(act => (
+            <button key={act.id} onClick={() => addMalus(subjectId, act)} style={{ display:"flex", alignItems:"center", gap:10, background:"#e74c3c12", border:"1px solid #e74c3c30", borderRadius:14, padding:"13px 15px", cursor:"pointer", color:"#fff", fontWeight:700, fontSize:14, textAlign:"left", fontFamily:"Nunito,sans-serif" }}>
+              <span style={{ fontSize:22 }}>{act.icon}</span>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:13, lineHeight:1.3 }}>{act.name}</div>
+                <div style={{ color:"#e74c3c", fontSize:13, fontWeight:900 }}>{act.points} pt</div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </>}
+
+      {/* I tuoi punti in attesa */}
+      <h3 style={h3}>I tuoi punti in attesa {myJudge && <span style={{ color:"#ffffff44", fontWeight:600, fontSize:12 }}>· arbitro: {myJudge.name}</span>}</h3>
+      {myPending.length === 0
+        ? empty("Nessuno — sei in regola ✅")
+        : myPending.map(l => (
+            <div key={l.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:"#ffffff08", borderRadius:12, padding:"11px 14px", marginBottom:8, border:"1px solid #f39c1233" }}>
+              <span style={{ fontSize:15 }}>{l.icon} {l.name}</span>
+              <span style={{ color:l.points>=0?"#2ecc71":"#e74c3c", fontWeight:800, fontSize:16 }}>{l.points>=0?"+":""}{l.points}</span>
+            </div>
+          ))
+      }
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
 // LEADERBOARD
 // ─────────────────────────────────────────────
 function Leaderboard({ store, currentId }) {
   const ranked = CHARACTERS
     .filter(c => store.players[c.id])
     .map(c => {
-      const logs = store.logs[c.id] || [];
+      const logs = (store.logs[c.id] || []).filter(l => l.status !== "pending");
       const total = logs.reduce((s,l) => s+l.points, 0);
       const today = new Date().toISOString().split("T")[0];
       const todayPts = logs.filter(l => l.date===today).reduce((s,l) => s+l.points, 0);
-      return { ...c, total, todayPts };
+      const pending = (store.logs[c.id] || []).filter(l => l.status === "pending").length;
+      return { ...c, total, todayPts, pending };
     })
     .sort((a,b) => b.total - a.total);
 
@@ -548,7 +754,7 @@ function Leaderboard({ store, currentId }) {
           <div style={{ borderRadius:"50%", overflow:"hidden", width:48, height:48, flexShrink:0, boxShadow:`0 0 12px ${c.color}55` }}><AvatarSVG char={c} size={48} /></div>
           <div style={{ flex:1 }}>
             <div style={{ fontWeight:800, fontSize:16 }}>{c.name} {c.id===currentId&&<span style={{ fontSize:12, color:c.color }}>(tu)</span>}</div>
-            <div style={{ color:"#ffffff44", fontSize:12 }}>Oggi: <span style={{ color:c.todayPts>=0?"#2ecc71":"#e74c3c", fontWeight:700 }}>{c.todayPts>=0?"+":""}{c.todayPts}</span></div>
+            <div style={{ color:"#ffffff44", fontSize:12 }}>Oggi: <span style={{ color:c.todayPts>=0?"#2ecc71":"#e74c3c", fontWeight:700 }}>{c.todayPts>=0?"+":""}{c.todayPts}</span>{c.pending>0 && <span style={{ color:"#f39c12", fontWeight:700 }}> · ⏳ {c.pending} in attesa</span>}</div>
           </div>
           <div style={{ fontSize:22, fontWeight:900, color:c.total>=0?"#2ecc71":"#e74c3c" }}>{c.total>=0?"+":""}{c.total}</div>
         </div>
@@ -580,6 +786,14 @@ function AdminPanel({ store, onSave }) {
     onSave({ ...store, logs:{} });
   }
 
+  function togglePhase2() {
+    const next = !store.phase2;
+    if (!confirm(next
+      ? "Confermi che Pietro e Virginia sono partiti? La catena arbitri passa a 10 giocatori (Gaia arbitra Federica)."
+      : "Ripristinare la catena completa a 12 giocatori (con Pietro e Virginia)?")) return;
+    onSave({ ...store, phase2: next });
+  }
+
   return (
     <div>
       <h2 style={{ fontSize:22, fontWeight:900, marginBottom:24 }}>⚙️ Admin</h2>
@@ -593,6 +807,19 @@ function AdminPanel({ store, onSave }) {
           </div>
         ))}
         {CHARACTERS.filter(c=>store.players[c.id]).length===0 && <p style={{ color:"#ffffff33", fontSize:14 }}>Nessuno ancora</p>}
+      </div>
+
+      <h3 style={{ fontSize:15, fontWeight:800, color:"#ffffff66", marginBottom:12 }}>🧑‍⚖️ Fase arbitri</h3>
+      <div style={{ background:"#ffffff08", border:"1px solid #ffffff1a", borderRadius:16, padding:"16px 18px", marginBottom:32 }}>
+        <p style={{ fontSize:14, marginBottom:4 }}>Catena attuale: <b style={{ color:store.phase2?"#f39c12":"#2ecc71" }}>{store.phase2 ? "Ridotta (10 giocatori)" : "Completa (12 giocatori)"}</b></p>
+        <p style={{ color:"#ffffff55", fontSize:12, marginBottom:14 }}>
+          {store.phase2
+            ? "Pietro e Virginia sono partiti. Gaia arbitra Federica."
+            : "Tutti presenti. Gaia arbitra Pietro, Pietro arbitra Virginia, Virginia arbitra Federica."}
+        </p>
+        <button onClick={togglePhase2} style={{ padding:"11px 20px", borderRadius:12, border:"none", cursor:"pointer", fontWeight:800, fontSize:14, fontFamily:"Nunito,sans-serif", color:"#fff", background: store.phase2 ? "linear-gradient(135deg,#2ecc71,#27ae60)" : "linear-gradient(135deg,#e67e22,#d35400)" }}>
+          {store.phase2 ? "↩️ Ripristina catena completa" : "✈️ Pietro e Virginia sono partiti"}
+        </button>
       </div>
 
       <h3 style={{ fontSize:15, fontWeight:800, color:"#ffffff66", marginBottom:12 }}>➕ Nuova attività</h3>
