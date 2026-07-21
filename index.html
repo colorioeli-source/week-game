@@ -448,7 +448,7 @@ function Dashboard({ player, store, onSave, onLogout, isAdmin }) {
   const char = CHARACTERS.find(c => c.id === (isAdmin ? selectedId : player?.id));
   const logs = store.logs[selectedId] || [];
   const today = new Date().toISOString().split("T")[0];
-  const isApproved = l => l.status !== "pending";
+  const isApproved = l => l.status === "approved";
   const todayLogs = logs.filter(l => l.date === today);
   const totalPoints = logs.filter(isApproved).reduce((s,l) => s + l.points, 0);
   const pendingPoints = logs.filter(l => !isApproved(l)).reduce((s,l) => s + l.points, 0);
@@ -530,14 +530,14 @@ function Dashboard({ player, store, onSave, onLogout, isAdmin }) {
                       <span style={{ fontSize:15 }}>
                         {l.icon} {l.name}
                         {l.byRef && <span style={{ marginLeft:8, fontSize:11, fontWeight:800, color:"#9b6bff", background:"#9b6bff20", borderRadius:8, padding:"2px 7px" }}>🧑‍⚖️ arbitro</span>}
-                        {isApproved(l)
-                          ? <span style={{ marginLeft:8, fontSize:11, fontWeight:800, color:"#2ecc71", background:"#2ecc7120", borderRadius:8, padding:"2px 7px" }}>✅ ok</span>
-                          : <span style={{ marginLeft:8, fontSize:11, fontWeight:800, color:"#f39c12", background:"#f39c1220", borderRadius:8, padding:"2px 7px" }}>⏳ in attesa</span>
-                        }
+                        {l.status==="approved"      && <span style={{ marginLeft:8, fontSize:11, fontWeight:800, color:"#2ecc71", background:"#2ecc7120", borderRadius:8, padding:"2px 7px" }}>✅ ok</span>}
+                        {l.status==="pending"       && <span style={{ marginLeft:8, fontSize:11, fontWeight:800, color:"#f39c12", background:"#f39c1220", borderRadius:8, padding:"2px 7px" }}>⏳ in attesa</span>}
+                        {l.status==="await_subject" && <span style={{ marginLeft:8, fontSize:11, fontWeight:800, color:"#9b6bff", background:"#9b6bff20", borderRadius:8, padding:"2px 7px" }}>⚖️ da accettare</span>}
+                        {l.status==="disputed"      && <span style={{ marginLeft:8, fontSize:11, fontWeight:800, color:"#e74c3c", background:"#e74c3c20", borderRadius:8, padding:"2px 7px" }}>⛔ contestato</span>}
                       </span>
                       <div style={{ display:"flex", alignItems:"center", gap:10 }}>
                         <span style={{ color:l.points>=0?"#2ecc71":"#e74c3c", fontWeight:800, fontSize:16 }}>{l.points>=0?"+":""}{l.points}</span>
-                        {(isAdmin || !isApproved(l)) && (
+                        {(isAdmin || (l.status==="pending" && !l.byRef)) && (
                           <button onClick={() => removeLog(l.id)} title="Rimuovi" style={{ background:"#ffffff12", border:"none", borderRadius:6, color:"#ffffff77", cursor:"pointer", padding:"4px 9px", fontSize:12, fontFamily:"Nunito,sans-serif" }}>✕</button>
                         )}
                       </div>
@@ -578,45 +578,62 @@ function Dashboard({ player, store, onSave, onLogout, isAdmin }) {
 // ─────────────────────────────────────────────
 // IN APPROVAZIONE (arbitri)
 // ─────────────────────────────────────────────
-function PendingRow({ log, onApprove, onReject }) {
+const STATUS_TAG = {
+  pending:       { t:"⏳ in attesa arbitro", c:"#f39c12" },
+  await_subject: { t:"⚖️ da accettare",      c:"#9b6bff" },
+  disputed:      { t:"⛔ contestato",         c:"#e74c3c" },
+};
+
+function PendingRow({ log, onApprove, onReject, aTitle, rTitle, tag }) {
   return (
     <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:"#ffffff09", borderRadius:12, padding:"11px 14px", marginBottom:8, border:`1px solid ${log.points>=0?"#2ecc7133":"#e74c3c33"}` }}>
-      <span style={{ fontSize:15, flex:1 }}>{log.icon} {log.name}</span>
+      <span style={{ fontSize:15, flex:1 }}>{log.icon} {log.name}{tag && <span style={{ marginLeft:8, fontSize:11, fontWeight:800, color:tag.c, background:tag.c+"20", borderRadius:8, padding:"2px 7px" }}>{tag.t}</span>}</span>
       <span style={{ color:log.points>=0?"#2ecc71":"#e74c3c", fontWeight:800, fontSize:16, marginRight:12, minWidth:42, textAlign:"right" }}>{log.points>=0?"+":""}{log.points}</span>
       <div style={{ display:"flex", gap:6 }}>
-        <button onClick={onApprove} title="Approva" style={{ background:"#2ecc7122", border:"1px solid #2ecc7155", borderRadius:8, color:"#2ecc71", cursor:"pointer", padding:"6px 10px", fontWeight:800, fontFamily:"Nunito,sans-serif" }}>✓</button>
-        <button onClick={onReject} title="Rifiuta" style={{ background:"#e74c3c22", border:"1px solid #e74c3c55", borderRadius:8, color:"#e74c3c", cursor:"pointer", padding:"6px 10px", fontWeight:800, fontFamily:"Nunito,sans-serif" }}>✕</button>
+        <button onClick={onApprove} title={aTitle||"Approva"} style={{ background:"#2ecc7122", border:"1px solid #2ecc7155", borderRadius:8, color:"#2ecc71", cursor:"pointer", padding:"6px 10px", fontWeight:800, fontFamily:"Nunito,sans-serif" }}>✓</button>
+        <button onClick={onReject} title={rTitle||"Rifiuta"} style={{ background:"#e74c3c22", border:"1px solid #e74c3c55", borderRadius:8, color:"#e74c3c", cursor:"pointer", padding:"6px 10px", fontWeight:800, fontFamily:"Nunito,sans-serif" }}>✕</button>
       </div>
+    </div>
+  );
+}
+
+function InfoRow({ log, note }) {
+  return (
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:"#ffffff08", borderRadius:12, padding:"11px 14px", marginBottom:8, border:"1px solid #ffffff14" }}>
+      <span style={{ fontSize:15 }}>{log.icon} {log.name}{note && <span style={{ marginLeft:8, color:"#ffffff55", fontSize:12 }}>{note}</span>}</span>
+      <span style={{ color:log.points>=0?"#2ecc71":"#e74c3c", fontWeight:800, fontSize:16 }}>{log.points>=0?"+":""}{log.points}</span>
     </div>
   );
 }
 
 function ApprovalScreen({ store, onSave, isAdmin, myId, phase2 }) {
   const today = new Date().toISOString().split("T")[0];
-  const pendingOf = pid => (store.logs[pid] || []).filter(l => l.status === "pending");
+  const logsOf = pid => store.logs[pid] || [];
+  const byStatus = (pid, st) => logsOf(pid).filter(l => l.status === st);
+  const nonApprovedOf = pid => logsOf(pid).filter(l => l.status !== "approved");
   const malusActs = store.activities.filter(a => a.points < 0);
 
-  function approve(pid, logId) {
+  function setStatus(pid, logId, status) {
     const ns = { ...store };
-    ns.logs[pid] = (ns.logs[pid] || []).map(l => l.id === logId ? { ...l, status:"approved" } : l);
+    ns.logs[pid] = logsOf(pid).map(l => l.id === logId ? { ...l, status } : l);
     onSave(ns);
   }
-  function reject(pid, logId) {
+  function removeLog(pid, logId) {
     const ns = { ...store };
-    ns.logs[pid] = (ns.logs[pid] || []).filter(l => l.id !== logId);
+    ns.logs[pid] = logsOf(pid).filter(l => l.id !== logId);
     onSave(ns);
   }
-  function approveAll(pid) {
+  function approveAllSelf(pid) {
     const ns = { ...store };
-    ns.logs[pid] = (ns.logs[pid] || []).map(l => l.status === "pending" ? { ...l, status:"approved" } : l);
+    ns.logs[pid] = logsOf(pid).map(l => l.status === "pending" ? { ...l, status:"approved" } : l);
     onSave(ns);
   }
-  function addMalus(pid, act) {
+  function proposeMalus(pid, act) {
     const ns = { ...store };
     if (!ns.logs[pid]) ns.logs[pid] = [];
-    ns.logs[pid] = [...ns.logs[pid], {
+    ns.logs[pid] = [...logsOf(pid), {
       id: uid(), activityId:act.id, date:today, points:act.points, icon:act.icon, name:act.name,
-      status:"approved", byRef:true,
+      status:"await_subject", byRef:true,
     }];
     onSave(ns);
   }
@@ -625,24 +642,27 @@ function ApprovalScreen({ store, onSave, isAdmin, myId, phase2 }) {
   const h3 = { fontSize:15, fontWeight:800, color:"#ffffff88", margin:"22px 0 12px" };
   const empty = txt => <p style={{ color:"#ffffff33", fontSize:14, fontStyle:"italic", padding:"6px 0" }}>{txt}</p>;
 
-  // ─── VISTA ADMIN: tutte le approvazioni ───
+  // ─── VISTA ADMIN: tutte le voci non approvate ───
   if (isAdmin) {
-    const withPending = CHARACTERS.filter(c => pendingOf(c.id).length > 0);
+    const withPending = CHARACTERS.filter(c => nonApprovedOf(c.id).length > 0);
     return (
       <div>
         <h2 style={h2}>⏳ In approvazione</h2>
-        <p style={{ color:"#ffffff44", fontSize:13, marginBottom:12 }}>Panoramica admin — puoi approvare o rifiutare qualsiasi voce.</p>
-        {withPending.length === 0 && empty("Nessun punto in attesa. Tutto validato! ✅")}
+        <p style={{ color:"#ffffff44", fontSize:13, marginBottom:12 }}>Panoramica admin — puoi approvare o rifiutare qualsiasi voce. I malus <b style={{color:"#e74c3c"}}>contestati</b> aspettano la tua decisione.</p>
+        {withPending.length === 0 && empty("Niente da gestire. Tutto validato! ✅")}
         {withPending.map(c => (
           <div key={c.id} style={{ marginBottom:24 }}>
             <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
               <div style={{ borderRadius:"50%", overflow:"hidden", width:32, height:32 }}><AvatarSVG char={c} size={32} /></div>
               <span style={{ fontWeight:800, fontSize:16 }}>{c.name}</span>
               <span style={{ color:"#ffffff44", fontSize:12 }}>arbitro: {CHARACTERS.find(x=>x.id===judgeOf(c.id, phase2))?.name || "—"}</span>
-              <button onClick={() => approveAll(c.id)} style={{ marginLeft:"auto", background:"#2ecc7118", border:"1px solid #2ecc7144", borderRadius:8, color:"#2ecc71", cursor:"pointer", padding:"5px 12px", fontWeight:700, fontSize:12, fontFamily:"Nunito,sans-serif" }}>Approva tutti</button>
             </div>
-            {pendingOf(c.id).map(l => (
-              <PendingRow key={l.id} log={l} onApprove={() => approve(c.id, l.id)} onReject={() => reject(c.id, l.id)} />
+            {nonApprovedOf(c.id).map(l => (
+              <PendingRow key={l.id} log={l} tag={STATUS_TAG[l.status]}
+                aTitle={l.status==="disputed" ? "Accetta al posto suo" : "Approva"}
+                rTitle={l.status==="disputed" ? "Conferma rifiuto" : "Rifiuta"}
+                onApprove={() => setStatus(c.id, l.id, "approved")}
+                onReject={() => removeLog(c.id, l.id)} />
             ))}
           </div>
         ))}
@@ -653,13 +673,31 @@ function ApprovalScreen({ store, onSave, isAdmin, myId, phase2 }) {
   // ─── VISTA PARTECIPANTE ───
   const subjectId = subjectOf(myId, phase2);
   const subject = CHARACTERS.find(c => c.id === subjectId);
-  const subjectPending = subjectId ? pendingOf(subjectId) : [];
+  const subjectPending = subjectId ? byStatus(subjectId, "pending") : [];
+  const myProposedToSubject = subjectId ? logsOf(subjectId).filter(l => l.byRef && l.status !== "approved") : [];
   const myJudge = CHARACTERS.find(c => c.id === judgeOf(myId, phase2));
-  const myPending = pendingOf(myId);
+  const malusToAccept = byStatus(myId, "await_subject");
+  const myDisputed = byStatus(myId, "disputed");
+  const mySelfPending = byStatus(myId, "pending");
 
   return (
     <div>
       <h2 style={h2}>⏳ In approvazione</h2>
+
+      {/* Malus proposti a ME dal mio arbitro — priorità in alto */}
+      {malusToAccept.length > 0 && <>
+        <h3 style={{ ...h3, marginTop:14, color:"#9b6bff" }}>⚖️ Malus proposti dal tuo arbitro</h3>
+        <p style={{ color:"#ffffff55", fontSize:12, marginBottom:12 }}>Accetta o rifiuta. Se rifiuti, la decisione passa agli admin.</p>
+        {malusToAccept.map(l => (
+          <PendingRow key={l.id} log={l} aTitle="Accetto" rTitle="Rifiuto"
+            onApprove={() => setStatus(myId, l.id, "approved")}
+            onReject={() => setStatus(myId, l.id, "disputed")} />
+        ))}
+      </>}
+      {myDisputed.length > 0 && <>
+        <h3 style={h3}>⛔ Malus che hai contestato</h3>
+        {myDisputed.map(l => <InfoRow key={l.id} log={l} note="in attesa decisione admin" />)}
+      </>}
 
       {/* Ruolo arbitro */}
       <div style={{ background:"#9b6bff14", border:"1px solid #9b6bff33", borderRadius:16, padding:"16px 18px", margin:"14px 0 6px", display:"flex", alignItems:"center", gap:14 }}>
@@ -681,18 +719,18 @@ function ApprovalScreen({ store, onSave, isAdmin, myId, phase2 }) {
         {subjectPending.length === 0
           ? empty(`Nessun punto in attesa da ${subject.name}.`)
           : <>
-              <button onClick={() => approveAll(subjectId)} style={{ marginBottom:12, background:"#2ecc7118", border:"1px solid #2ecc7144", borderRadius:10, color:"#2ecc71", cursor:"pointer", padding:"8px 16px", fontWeight:800, fontSize:13, fontFamily:"Nunito,sans-serif" }}>✓ Approva tutti</button>
+              <button onClick={() => approveAllSelf(subjectId)} style={{ marginBottom:12, background:"#2ecc7118", border:"1px solid #2ecc7144", borderRadius:10, color:"#2ecc71", cursor:"pointer", padding:"8px 16px", fontWeight:800, fontSize:13, fontFamily:"Nunito,sans-serif" }}>✓ Approva tutti</button>
               {subjectPending.map(l => (
-                <PendingRow key={l.id} log={l} onApprove={() => approve(subjectId, l.id)} onReject={() => reject(subjectId, l.id)} />
+                <PendingRow key={l.id} log={l} onApprove={() => setStatus(subjectId, l.id, "approved")} onReject={() => removeLog(subjectId, l.id)} />
               ))}
             </>
         }
 
         <h3 style={h3}>➕ Suggerisci un malus a {subject.name}</h3>
-        <p style={{ color:"#ffffff44", fontSize:12, marginBottom:12 }}>Come arbitro puoi (e devi!) assegnare malus. Vengono conteggiati subito.</p>
+        <p style={{ color:"#ffffff44", fontSize:12, marginBottom:12 }}>Come arbitro puoi (e devi!) proporre malus. {subject.name} dovrà accettarli; se rifiuta, decidono gli admin.</p>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
           {malusActs.map(act => (
-            <button key={act.id} onClick={() => addMalus(subjectId, act)} style={{ display:"flex", alignItems:"center", gap:10, background:"#e74c3c12", border:"1px solid #e74c3c30", borderRadius:14, padding:"13px 15px", cursor:"pointer", color:"#fff", fontWeight:700, fontSize:14, textAlign:"left", fontFamily:"Nunito,sans-serif" }}>
+            <button key={act.id} onClick={() => proposeMalus(subjectId, act)} style={{ display:"flex", alignItems:"center", gap:10, background:"#e74c3c12", border:"1px solid #e74c3c30", borderRadius:14, padding:"13px 15px", cursor:"pointer", color:"#fff", fontWeight:700, fontSize:14, textAlign:"left", fontFamily:"Nunito,sans-serif" }}>
               <span style={{ fontSize:22 }}>{act.icon}</span>
               <div style={{ flex:1 }}>
                 <div style={{ fontSize:13, lineHeight:1.3 }}>{act.name}</div>
@@ -701,18 +739,20 @@ function ApprovalScreen({ store, onSave, isAdmin, myId, phase2 }) {
             </button>
           ))}
         </div>
+
+        {myProposedToSubject.length > 0 && <>
+          <h3 style={h3}>Malus che hai proposto a {subject.name}</h3>
+          {myProposedToSubject.map(l => (
+            <InfoRow key={l.id} log={l} note={l.status==="await_subject" ? "in attesa che accetti" : "contestato · agli admin"} />
+          ))}
+        </>}
       </>}
 
-      {/* I tuoi punti in attesa */}
+      {/* I tuoi punti auto-registrati in attesa dell'arbitro */}
       <h3 style={h3}>I tuoi punti in attesa {myJudge && <span style={{ color:"#ffffff44", fontWeight:600, fontSize:12 }}>· arbitro: {myJudge.name}</span>}</h3>
-      {myPending.length === 0
+      {mySelfPending.length === 0
         ? empty("Nessuno — sei in regola ✅")
-        : myPending.map(l => (
-            <div key={l.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:"#ffffff08", borderRadius:12, padding:"11px 14px", marginBottom:8, border:"1px solid #f39c1233" }}>
-              <span style={{ fontSize:15 }}>{l.icon} {l.name}</span>
-              <span style={{ color:l.points>=0?"#2ecc71":"#e74c3c", fontWeight:800, fontSize:16 }}>{l.points>=0?"+":""}{l.points}</span>
-            </div>
-          ))
+        : mySelfPending.map(l => <InfoRow key={l.id} log={l} />)
       }
     </div>
   );
@@ -725,11 +765,11 @@ function Leaderboard({ store, currentId }) {
   const ranked = CHARACTERS
     .filter(c => store.players[c.id])
     .map(c => {
-      const logs = (store.logs[c.id] || []).filter(l => l.status !== "pending");
+      const logs = (store.logs[c.id] || []).filter(l => l.status === "approved");
       const total = logs.reduce((s,l) => s+l.points, 0);
       const today = new Date().toISOString().split("T")[0];
       const todayPts = logs.filter(l => l.date===today).reduce((s,l) => s+l.points, 0);
-      const pending = (store.logs[c.id] || []).filter(l => l.status === "pending").length;
+      const pending = (store.logs[c.id] || []).filter(l => l.status !== "approved").length;
       return { ...c, total, todayPts, pending };
     })
     .sort((a,b) => b.total - a.total);
